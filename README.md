@@ -10,6 +10,7 @@ Go client for Azure Notification Hubs (iOS + Android) with dynamic SAS authentic
 - ✅ Push notification sending with per-user tagging
 - ✅ Auto-refreshing SAS token generation
 - ✅ YAML config loading (with support for full connection strings)
+- ✅ Single unified client struct with minimal boilerplate
 
 ## ☁️ Azure Setup
 
@@ -61,7 +62,6 @@ TokenValidity: "2h"
 
 The library will auto-extract `Namespace`, `KeyName`, and `KeyValue` from the connection string.
 
-
 ## 📱 Mobile Device Tokens
 
 In your mobile apps:
@@ -76,25 +76,27 @@ Then send it to your backend for registration using this package.
 ```go
 package main
 
-import "github.com/kataras/azurepush"
+import (
+	"github.com/kataras/azurepush"
+)
 
 func main() {
 	cfg, _ := azurepush.LoadConfiguration("configuration.yml")
+	client := azurepush.NewClient(*cfg)
 
-	tm := azurepush.NewTokenManager(cfg)
-	token, _ := tm.GetToken()
-
-	_ = azurepush.RegisterDevice(cfg.HubName, cfg.Namespace, token, azurepush.Installation{
-		InstallationID: "device-123",
-		Platform:       "fcm", // or "apns"
-		PushChannel:    "fcm-or-apns-token",
-		Tags:           []string{"user:42"},
+	id, err := client.RegisterDevice(azurepush.Installation{
+		Platform:    "fcm", // or "apns"
+		PushChannel: "fcm-or-apns-token",
+		Tags:        []string{"user:42"},
 	})
+	if err != nil {
+		panic(err)
+	}
 
-	_ = azurepush.SendNotification(cfg.HubName, cfg.Namespace, token, "42", azurepush.NotificationMessage{
+	_ = client.SendNotification(azurepush.NotificationMessage{
 		Title: "Welcome",
 		Body:  "Hello from AzurePush!",
-	})
+	}, "user:42")
 }
 ```
 

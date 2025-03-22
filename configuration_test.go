@@ -8,7 +8,7 @@ import (
 	"github.com/kataras/azurepush"
 )
 
-func TestParseConnectionString_Success(t *testing.T) {
+func TestConfiguration_parseConnectionString_Success(t *testing.T) {
 	cfg := &azurepush.Configuration{
 		ConnectionString: "Endpoint=sb://testnamespace.servicebus.windows.net/;SharedAccessKeyName=testKeyName;SharedAccessKey=testKeyValue",
 		TokenValidity:    1 * time.Hour,
@@ -29,7 +29,7 @@ func TestParseConnectionString_Success(t *testing.T) {
 	}
 }
 
-func TestParseConnectionString_Invalid(t *testing.T) {
+func TestConfiguration_parseConnectionString_Invalid(t *testing.T) {
 	cfg := &azurepush.Configuration{
 		ConnectionString: "invalid-connection-string",
 	}
