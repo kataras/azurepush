@@ -46,6 +46,8 @@ func (tm *TokenManager) GetToken() (string, error) {
 }
 
 // GenerateSASToken creates a Shared Access Signature (SAS) token for Azure Notification Hub.
+//
+// Ported from: https://learn.microsoft.com/en-us/rest/api/eventhub/generate-sas-token#nodejs.
 func GenerateSASToken(resourceUri, keyName, key string, duration time.Duration) (string, error) {
 	if resourceUri == "" || keyName == "" || key == "" {
 		return "", fmt.Errorf("missing required parameter")
@@ -76,9 +78,9 @@ func GenerateSASToken(resourceUri, keyName, key string, duration time.Duration) 
 	return token, nil
 }
 
-// ValidateToken checks if a SAS token is valid.
+// ValidateSASToken checks if a SAS token is valid.
 // Expecting 404 or 200 if token is valid
-func ValidateToken(ctx context.Context, httpClient *http.Client, namespace, hubName, token string) error {
+func ValidateSASToken(ctx context.Context, httpClient *http.Client, namespace, hubName, token string) error {
 	// Dummy installation ID — Azure will return 404 if not found, which is OK
 	dummyInstallationID := uuid.NewString()
 

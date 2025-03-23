@@ -124,7 +124,7 @@ func (c *Client) ValidateToken(ctx context.Context) error {
 		return err
 	}
 
-	return ValidateToken(ctx, c.HTTPClient, c.Config.Namespace, c.Config.HubName, token)
+	return ValidateSASToken(ctx, c.HTTPClient, c.Config.Namespace, c.Config.HubName, token)
 }
 
 // RegisterDevice registers a device installation with Azure Notification Hubs.
@@ -303,7 +303,7 @@ func sendPlatformNotification(
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusBadRequest /* bad request: gcm notification failed with status 400*/ {
 		return fmt.Errorf("%w: %s notification skipped", errDeviceNotFound, platform)
 	}
 	if resp.StatusCode >= 300 {
