@@ -12,7 +12,8 @@ func TestGenerateSASToken(t *testing.T) {
 	uri := "https://mynamespace.servicebus.windows.net/myhub"
 	keyName := "DefaultFullSharedAccessSignature"
 	key := "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=" // base64-encoded dummy
-	token, err := azurepush.GenerateSASToken(uri, keyName, key, 1*time.Hour)
+
+	token, err := azurepush.GenerateSASToken(uri, keyName, key, time.Hour)
 	if err != nil {
 		t.Fatalf("expected no error generating SAS token, got: %v", err)
 	}
@@ -23,6 +24,12 @@ func TestGenerateSASToken(t *testing.T) {
 	if !strings.Contains(token, "sig=") || !strings.Contains(token, "se=") || !strings.Contains(token, "skn=") {
 		t.Error("expected token to contain sig, se, and skn parameters")
 	}
+
+	// t.Log(token)
+	// err = azurepush.ValidateToken(context.Background(), http.DefaultClient, "...namespace", "...hub", token)
+	// if err != nil {
+	// 	t.Fatalf("expected no error validating token, got: %v", err)
+	// }
 }
 
 func TestTokenManager_AutoRefresh(t *testing.T) {

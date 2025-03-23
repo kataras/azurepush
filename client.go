@@ -38,8 +38,7 @@ type Client struct {
 // NewClient creates a new Azure Notification Hub client with the given configuration.
 // It automatically initializes a TokenManager for SAS token generation and reuse.
 //
-// This method does not validate or test connectivity — call client.RegisterDevice()
-// or other methods to interact with the hub.
+// This method also validates and tests connectivity to the Azure Notification Hub.
 //
 // Example:
 //
@@ -50,11 +49,23 @@ func NewClient(cfg Configuration) *Client {
 		panic(err)
 	}
 
-	return &Client{
+	client := &Client{
 		Config:       cfg,
 		TokenManager: NewTokenManager(cfg),
 		HTTPClient:   &http.Client{Timeout: 10 * time.Second},
 	}
+
+	if cfg.ConnectivityCheck {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancelFunc()
+
+		if err := client.ValidateToken(ctx); err != nil {
+			panic(err)
+		}
+
+	}
+
+	return client
 }
 
 type (
@@ -102,6 +113,18 @@ func (i Installation) Validate() bool {
 		return false
 	}
 	return true
+}
+
+// ValidateToken performs a simple GET request to a dummy installation ID
+// to verify if the SAS token is valid and authorized.
+// Returns nil if authorized (even if installation doesn't exist), or an error if unauthorized.
+func (c *Client) ValidateToken(ctx context.Context) error {
+	token, err := c.TokenManager.GetToken()
+	if err != nil {
+		return err
+	}
+
+	return ValidateToken(ctx, c.HTTPClient, c.Config.Namespace, c.Config.HubName, token)
 }
 
 // RegisterDevice registers a device installation with Azure Notification Hubs.

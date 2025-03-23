@@ -56,8 +56,19 @@ type Configuration struct {
 	// TokenValidity is how long each generated SAS token should remain valid.
 	// It must be a valid Go duration string (e.g., "1h", "30m").
 	// Example: 2 * time.Hour
+	//
+	// Defaults to 1 week.
 	TokenValidity time.Duration `yaml:"TokenValidity"`
+
+	// ConnectivityCheck enables the connectivity check.
+	// If enabled, the NewClient will check the connection to the Azure Notification Hub before sending messages.
+	//
+	// Defaults to false.
+	ConnectivityCheck bool `yaml:"ConnectivityCheck"`
 }
+
+// 1 week.
+var DefaultTokenValidity = time.Hour * 24 * 7
 
 // Validate checks the AzureConfig for required fields.
 // It also parses the connection string if available.
@@ -79,8 +90,8 @@ func (cfg *Configuration) Validate() error {
 		return errors.New("missing Azure key value")
 	}
 
-	if cfg.TokenValidity == 0 {
-		return errors.New("missing token validity duration")
+	if cfg.TokenValidity <= 0 {
+		cfg.TokenValidity = DefaultTokenValidity
 	}
 
 	return nil
@@ -137,5 +148,6 @@ func LoadConfiguration(path string) (*Configuration, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %w", err)
 	}
+
 	return &cfg, cfg.Validate()
 }
