@@ -285,3 +285,54 @@ func (c *Client) DeviceExists(installationID string) (bool, error) {
 		return false, fmt.Errorf("unexpected response: %s — %v", resp.Status, detail)
 	}
 }
+
+// DeleteDevice deletes a registered device installation from Azure Notification Hubs
+// using its installation ID.
+//
+// This operation is idempotent — if the installation does not exist, Azure will return 404,
+// and this function will still return nil.
+//
+// Example:
+//
+//	err := client.DeleteDevice("device-uuid-123")
+func (c *Client) DeleteDevice(installationID string) error {
+	if installationID == "" {
+		return fmt.Errorf("installation ID cannot be empty")
+	}
+
+	url := fmt.Sprintf(
+		"https://%s.servicebus.windows.net/%s/installations/%s?api-version=2020-06",
+		c.Config.Namespace,
+		c.Config.HubName,
+		installationID,
+	)
+
+	token, err := c.TokenManager.GetToken()
+	if err != nil {
+		return fmt.Errorf("failed to get SAS token: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create DELETE request: %w", err)
+	}
+
+	req.Header.Set("Authorization", token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send DELETE request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		// Already deleted or never existed — treat as success
+		return nil
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("unexpected status while deleting device: %s", resp.Status)
+	}
+
+	return nil
+}
