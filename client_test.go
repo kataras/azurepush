@@ -2,6 +2,7 @@ package azurepush_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -53,7 +54,7 @@ func TestClient_RegisterDevice_Mocked(t *testing.T) {
 		Tags:           []string{"user:42"},
 	}
 
-	id, err := client.RegisterDevice(installation)
+	id, err := client.RegisterDevice(context.Background(), installation)
 	if err != nil {
 		t.Fatalf("expected no error from RegisterDevice, got: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestClient_DeviceDeviceExists_Mocked(t *testing.T) {
 	})
 	client.HTTPClient = httpClient
 
-	exists, err := client.DeviceExists(installation.InstallationID)
+	exists, err := client.DeviceExists(context.Background(), installation.InstallationID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestClient_SendNotification_Mocked(t *testing.T) {
 	client.HTTPClient = httpClient
 
 	msg := azurepush.NotificationMessage{Title: "Hi", Body: "Hello"}
-	err := client.SendNotification(msg, "user:42")
+	err := client.SendNotification(context.Background(), msg, "user:42")
 	if err != nil {
 		t.Fatalf("expected no error from SendNotification, got: %v", err)
 	}

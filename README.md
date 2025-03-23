@@ -84,7 +84,7 @@ func main() {
 	cfg, _ := azurepush.LoadConfiguration("configuration.yml")
 	client := azurepush.NewClient(*cfg)
 
-	id, err := client.RegisterDevice(azurepush.Installation{
+	id, err := client.RegisterDevice(context.Background(), azurepush.Installation{
 		Platform:    "fcm", // or "apns"
 		PushChannel: "fcm-or-apns-token",
 		Tags:        []string{"user:42"},
@@ -93,7 +93,7 @@ func main() {
 		panic(err)
 	}
 
-	_ = client.SendNotification(azurepush.NotificationMessage{
+	_ = client.SendNotification(context.Background(), azurepush.NotificationMessage{
 		Title: "Welcome",
 		Body:  "Hello from AzurePush!",
 	}, "user:42")

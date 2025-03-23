@@ -2,6 +2,7 @@ package azurepush
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +21,8 @@ import (
 // Example usage:
 //
 //	client := azurepush.NewClient(cfg)
-//	id, err := client.RegisterDevice(installation)
-//	err = client.SendNotification("user:123", azurepush.NotificationMessage{...})
+//	id, err := client.RegisterDevice(context.Background(), installation)
+//	err = client.SendNotification(context.Background(), azurepush.NotificationMessage{...}, "user:123")
 type Client struct {
 	Config       Configuration
 	TokenManager *TokenManager
@@ -41,7 +42,7 @@ type Client struct {
 // Example:
 //
 //	client := azurepush.NewClient(azureCfg)
-//	err := client.SendNotification("user:42", msg)
+//	err := client.SendNotification(context.Background(), "user:42", msg)
 func NewClient(cfg Configuration) *Client {
 	if err := cfg.Validate(); err != nil {
 		panic(err)
@@ -107,7 +108,7 @@ func (i Installation) Validate() bool {
 // You use the tags you assign during registration to send notifications, as this is how you target specific devices.
 // For example, if you register a device with the tag "user:123", you can send a notification to that device
 // by targeting the "user:123" tag.
-func (c *Client) RegisterDevice(installation Installation) (string, error) {
+func (c *Client) RegisterDevice(ctx context.Context, installation Installation) (string, error) {
 	if installation.InstallationID == "" {
 		// Azure doesn't return an InstallationID
 		// It's a "create-or-replace" operation: PUT /installations/{installationId}
@@ -132,7 +133,7 @@ func (c *Client) RegisterDevice(installation Installation) (string, error) {
 	url := fmt.Sprintf("https://%s.servicebus.windows.net/%s/installations/%s?api-version=2020-06",
 		c.Config.Namespace, c.Config.HubName, installation.InstallationID)
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -153,7 +154,7 @@ func (c *Client) RegisterDevice(installation Installation) (string, error) {
 }
 
 // SendNotification sends a cross-platform push notification to all devices for a given user (e.g. tag with "user:42").
-func (c *Client) SendNotification(msg NotificationMessage, tags ...string) error {
+func (c *Client) SendNotification(ctx context.Context, msg NotificationMessage, tags ...string) error {
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return fmt.Errorf("failed to get SAS token: %w", err)
@@ -161,7 +162,7 @@ func (c *Client) SendNotification(msg NotificationMessage, tags ...string) error
 
 	noDevices := 0
 	for _, platform := range availablePlatforms {
-		if err := sendPlatformNotification(c.HTTPClient, c.Config.HubName, c.Config.Namespace, token, platform, msg, tags...); err != nil {
+		if err := sendPlatformNotification(ctx, c.HTTPClient, c.Config.HubName, c.Config.Namespace, token, platform, msg, tags...); err != nil {
 			if errors.Is(err, errDeviceNotFound) {
 				noDevices++
 				continue // skip if no devices found. Unless both platforms fail.
@@ -206,7 +207,7 @@ var availablePlatforms = []string{applePlatform, gcmPlatform}
 var errDeviceNotFound = fmt.Errorf("no device found")
 
 // sendPlatformNotification sends a platform-specific push notification.
-func sendPlatformNotification(client *http.Client, hubName, namespace, sasToken, platform string, msg NotificationMessage, tags ...string) error {
+func sendPlatformNotification(ctx context.Context, client *http.Client, hubName, namespace, sasToken, platform string, msg NotificationMessage, tags ...string) error {
 	var payload []byte
 	var err error
 
@@ -227,7 +228,7 @@ func sendPlatformNotification(client *http.Client, hubName, namespace, sasToken,
 	}
 
 	url := fmt.Sprintf("https://%s.servicebus.windows.net/%s/messages/?api-version=2020-06", namespace, hubName)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("failed to create %s request: %w", platform, err)
 	}
@@ -253,7 +254,7 @@ func sendPlatformNotification(client *http.Client, hubName, namespace, sasToken,
 
 // DeviceExists checks if a device installation with the given ID exists in Azure Notification Hub.
 // Returns true if the device is found (HTTP 200), false if not found (HTTP 404).
-func (c *Client) DeviceExists(installationID string) (bool, error) {
+func (c *Client) DeviceExists(ctx context.Context, installationID string) (bool, error) {
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return false, err
@@ -262,7 +263,7 @@ func (c *Client) DeviceExists(installationID string) (bool, error) {
 	url := fmt.Sprintf("https://%s.servicebus.windows.net/%s/installations/%s?api-version=2020-06",
 		c.Config.Namespace, c.Config.HubName, installationID)
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -294,8 +295,8 @@ func (c *Client) DeviceExists(installationID string) (bool, error) {
 //
 // Example:
 //
-//	err := client.DeleteDevice("device-uuid-123")
-func (c *Client) DeleteDevice(installationID string) error {
+//	err := client.DeleteDevice(context.Background(), "device-uuid-123")
+func (c *Client) DeleteDevice(ctx context.Context, installationID string) error {
 	if installationID == "" {
 		return fmt.Errorf("installation ID cannot be empty")
 	}
@@ -312,7 +313,7 @@ func (c *Client) DeleteDevice(installationID string) error {
 		return fmt.Errorf("failed to get SAS token: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create DELETE request: %w", err)
 	}
