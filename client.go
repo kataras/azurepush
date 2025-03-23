@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"strings"
@@ -148,7 +149,8 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("registration failed: %s", resp.Status)
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("registration failed: %s: %s", resp.Status, string(b))
 	}
 
 	return installation.InstallationID, nil
