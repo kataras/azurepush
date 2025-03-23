@@ -118,8 +118,8 @@ func TestClient_SendNotification_Mocked(t *testing.T) {
 	})
 	client.HTTPClient = httpClient
 
-	msg := azurepush.NotificationMessage{Title: "Hi", Body: "Hello"}
-	err := client.SendNotification(context.Background(), msg, "user:42")
+	notification := azurepush.Notification{Title: "Hi", Body: "Hello"}
+	err := client.SendNotification(context.Background(), notification, "user:42")
 	if err != nil {
 		t.Fatalf("expected no error from SendNotification, got: %v", err)
 	}

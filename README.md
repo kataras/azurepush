@@ -93,9 +93,10 @@ func main() {
 		panic(err)
 	}
 
-	_ = client.SendNotification(context.Background(), azurepush.NotificationMessage{
+	_ = client.SendNotification(context.Background(), azurepush.Notification{
 		Title: "Welcome",
 		Body:  "Hello from AzurePush!",
+		Data: map[string]any{"key": "value"},
 	}, "user:42")
 }
 ```

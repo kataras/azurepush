@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ import (
 //
 //	client := azurepush.NewClient(cfg)
 //	id, err := client.RegisterDevice(context.Background(), installation)
-//	err = client.SendNotification(context.Background(), azurepush.NotificationMessage{...}, "user:123")
+//	err = client.SendNotification(context.Background(), azurepush.Notification{...}, "user:123")
 type Client struct {
 	Config       Configuration
 	TokenManager *TokenManager
@@ -42,7 +43,7 @@ type Client struct {
 // Example:
 //
 //	client := azurepush.NewClient(azureCfg)
-//	err := client.SendNotification(context.Background(), "user:42", msg)
+//	err := client.SendNotification(context.Background(), notification, "user:42")
 func NewClient(cfg Configuration) *Client {
 	if err := cfg.Validate(); err != nil {
 		panic(err)
@@ -153,16 +154,28 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 	return installation.InstallationID, nil
 }
 
+// Notification holds the title, body and custom data for a notification sent to both iOS and Android.
+type Notification struct {
+	Title string
+	Body  string
+	Data  map[string]any // any custom data.
+}
+
 // SendNotification sends a cross-platform push notification to all devices for a given user (e.g. tag with "user:42").
-func (c *Client) SendNotification(ctx context.Context, msg NotificationMessage, tags ...string) error {
+func (c *Client) SendNotification(ctx context.Context, notification Notification, tags ...string) error {
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return fmt.Errorf("failed to get SAS token: %w", err)
 	}
 
+	msg := notificationMessage{
+		Title: notification.Title,
+		Body:  notification.Body,
+	}
+
 	noDevices := 0
 	for _, platform := range availablePlatforms {
-		if err := sendPlatformNotification(ctx, c.HTTPClient, c.Config.HubName, c.Config.Namespace, token, platform, msg, tags...); err != nil {
+		if err := sendPlatformNotification(ctx, c.HTTPClient, c.Config.HubName, c.Config.Namespace, token, platform, msg, notification.Data, tags...); err != nil {
 			if errors.Is(err, errDeviceNotFound) {
 				noDevices++
 				continue // skip if no devices found. Unless both platforms fail.
@@ -179,22 +192,18 @@ func (c *Client) SendNotification(ctx context.Context, msg NotificationMessage, 
 	return nil
 }
 
-// NotificationMessage holds the title and body for a notification sent to both iOS and Android.
-type NotificationMessage struct {
+type notificationMessage struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
-// AppleNotification is the full APNs payload.
-type AppleNotification struct {
-	Aps struct {
-		Alert NotificationMessage `json:"alert"`
-	} `json:"aps"`
-}
+// appleNotificationWithData allows embedding custom data alongside the APS payload.
+type appleNotificationWithData map[string]interface{}
 
-// AndroidNotification is the FCM payload.
-type AndroidNotification struct {
-	Notification NotificationMessage `json:"notification"`
+// androidNotification is the FCM payload.
+type androidNotificationWithData struct {
+	Notification notificationMessage    `json:"notification"`
+	Data         map[string]interface{} `json:"data,omitempty"`
 }
 
 const (
@@ -207,18 +216,43 @@ var availablePlatforms = []string{applePlatform, gcmPlatform}
 var errDeviceNotFound = fmt.Errorf("no device found")
 
 // sendPlatformNotification sends a platform-specific push notification.
-func sendPlatformNotification(ctx context.Context, client *http.Client, hubName, namespace, sasToken, platform string, msg NotificationMessage, tags ...string) error {
-	var payload []byte
-	var err error
+// Usage:
+//
+//	_ = sendPlatformNotification(ctx, client, hubName, namespace, token, "fcm", msg, map[string]any{
+//		"type":     "chat_message",
+//		"threadId": "abc123",
+//	}, "user:42")
+func sendPlatformNotification(
+	ctx context.Context,
+	client *http.Client,
+	hubName, namespace, sasToken, platform string,
+	msg notificationMessage,
+	data map[string]any,
+	tags ...string,
+) error {
+	var (
+		payload []byte
+		err     error
+	)
 
 	switch platform {
 	case applePlatform:
-		apns := AppleNotification{}
-		apns.Aps.Alert = msg
-		payload, err = json.Marshal(apns)
+		// APNs supports custom fields alongside "aps"
+		apnsPayload := appleNotificationWithData{
+			"aps": map[string]any{
+				"alert": msg,
+			},
+		}
+		maps.Copy(apnsPayload, data)
+
+		payload, err = json.Marshal(apnsPayload)
 	case gcmPlatform:
-		fcm := AndroidNotification{Notification: msg}
-		payload, err = json.Marshal(fcm)
+		// FCM supports custom data under "data"
+		fcmPayload := androidNotificationWithData{
+			Notification: msg,
+			Data:         data,
+		}
+		payload, err = json.Marshal(fcmPayload)
 	default:
 		return fmt.Errorf("unsupported platform: %s", platform)
 	}
@@ -236,13 +270,14 @@ func sendPlatformNotification(ctx context.Context, client *http.Client, hubName,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", sasToken)
 	req.Header.Set("ServiceBusNotification-Format", platform)
-	req.Header.Set("ServiceBusNotification-Tags", strings.Join(tags, ",")) //fmt.Sprintf("user:%s", userID))
+	req.Header.Set("ServiceBusNotification-Tags", strings.Join(tags, ","))
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send %s request: %w", platform, err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		return fmt.Errorf("%w: %s notification skipped", errDeviceNotFound, platform)
 	}
