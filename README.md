@@ -32,6 +32,30 @@ SharedAccessKeyName=DefaultFullSharedAccessSignature;
 SharedAccessKey=YOUR_SECRET_KEY
 ```
 
+### 🔍 Azure Notification Hubs vs AWS SNS: Device Management Capabilities
+
+The table below compares the core device management and introspection features between **AWS SNS** and **Azure Notification Hubs**:
+
+| Task                          | AWS SNS ✅     | Azure Notification Hubs ❌ |
+|-------------------------------|----------------|-----------------------------|
+| List all devices              | ✅ Yes         | ❌ No                       |
+| Browse per-user endpoints     | ✅ Yes         | ❌ No                       |
+| Store/send custom metadata    | ✅ Yes         | ✅ Yes (via tags or payload) |
+| View registrations in UI      | ✅ Yes         | ❌ No                       |
+| Delete devices by user        | ✅ Yes         | ❌ (You must track them)    |
+| Send to user/group            | ✅ Yes (topic/endpoint) | ✅ Yes (tags)      |
+
+SNS is both:
+- A messaging bus
+- A device registry (platform endpoint management)
+
+Azure Notification Hubs:
+
+- Delegates token management to you
+- Is intentionally stateless and write-only
+- Does not provide introspection over installations
+
+
 ## 📦 Install
 
 ```sh

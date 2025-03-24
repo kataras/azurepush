@@ -77,6 +77,12 @@ type (
 
 		// Platform is the platform type for the device.
 		// Valid values: "apns" for iOS, "fcm" for Android.
+		// Platform	| Value
+		// Apple	| "apns"
+		// FCM		| "fcm"
+		// Baidu	| "baidu"
+		// WNS		| "wns"
+		// MPNS		| "mpns"
 		Platform string `json:"platform"`
 
 		// PushChannel is the device-specific token to receive notifications.
@@ -102,17 +108,20 @@ type (
 )
 
 // Validate checks if the installation has all required fields set.
-func (i Installation) Validate() bool {
-	if i.InstallationID == "" {
-		return false
+func (i Installation) Validate() error {
+	switch i.Platform {
+	case "apns", "fcm":
+		// OK
+	default:
+		return fmt.Errorf("invalid platform: %q (must be 'apns' or 'fcm')", i.Platform)
 	}
-	if i.Platform != "apns" && i.Platform != "fcm" {
-		return false
+	if i.InstallationID == "" {
+		return fmt.Errorf("installation ID is required")
 	}
 	if i.PushChannel == "" {
-		return false
+		return fmt.Errorf("push channel is required")
 	}
-	return true
+	return nil
 }
 
 // ValidateToken performs a simple GET request to a dummy installation ID
@@ -141,8 +150,8 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 		installation.InstallationID = uuid.NewString()
 	}
 
-	if !installation.Validate() {
-		return "", fmt.Errorf("invalid installation data")
+	if err := installation.Validate(); err != nil {
+		return "", fmt.Errorf("invalid installation data: %w", err)
 	}
 
 	token, err := c.TokenManager.GetToken()
