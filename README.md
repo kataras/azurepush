@@ -91,7 +91,7 @@ The library will auto-extract `Namespace`, `KeyName`, and `KeyValue` from the co
 In your mobile apps:
 
 - For **iOS** (APNs), get the APNs device token
-- For **Android** (FCM), get the FCM registration token
+- For **Android** (FCM, GCM), get the FCM registration token
 
 Then send it to your backend for registration using this package.
 
@@ -109,8 +109,8 @@ func main() {
 	client := azurepush.NewClient(*cfg)
 
 	id, err := client.RegisterDevice(context.Background(), azurepush.Installation{
-		Platform:    "fcm", // or "apns"
-		PushChannel: "fcm-or-apns-token",
+		Platform:    "gcm", // or "apns"
+		PushChannel: "gcm-or-apns-token",
 		Tags:        []string{"user:42"},
 	})
 	if err != nil {

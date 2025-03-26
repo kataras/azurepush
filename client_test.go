@@ -49,7 +49,7 @@ func TestClient_RegisterDevice_Mocked(t *testing.T) {
 
 	installation := azurepush.Installation{
 		InstallationID: "test-device",
-		Platform:       "fcm",
+		Platform:       "gcm",
 		PushChannel:    "mock-token",
 		Tags:           []string{"user:42"},
 	}
@@ -67,7 +67,7 @@ func TestClient_RegisterDevice_Mocked(t *testing.T) {
 func TestClient_DeviceDeviceExists_Mocked(t *testing.T) {
 	installation := azurepush.Installation{
 		InstallationID: "test-device",
-		Platform:       "fcm",
+		Platform:       "gcm",
 		PushChannel:    "mock-token",
 		Tags:           []string{"user:42"},
 	}
