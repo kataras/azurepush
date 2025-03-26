@@ -182,7 +182,7 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("registration failed: %s: %s", resp.Status, string(b))
+		return "", fmt.Errorf("registration failed: installation: %s: %s: %s", string(jsonData), resp.Status, string(b))
 	}
 
 	return installation.InstallationID, nil
