@@ -68,6 +68,24 @@ func NewClient(cfg Configuration) *Client {
 	return client
 }
 
+// Installation types for Azure Notification Hubs.
+const (
+	// InstallationApple is the platform type for Apple devices (iOS).
+	InstallationApple = "apns"
+	// InstallationGCM is the platform type for Google Cloud Messaging (deprecated).
+	InstallationAndroid = "gcm"
+	// InstallationGCM is the platform type for Google Cloud Messaging (deprecated).
+	InstallationFCM = "fcm"
+	// InstallationFCMV1 is the platform type for Firebase Cloud Messaging (V1).
+	InstallationFCMV1 = "FCMV1"
+	// InstallationBaidu is the platform type for Baidu Push.
+	InstallationBaidu = "baidu"
+	// InstallationWNS is the platform type for Windows Notification Service.
+	InstallationWNS = "wns"
+	// InstallationMPNS is the platform type for Microsoft Push Notification Service.
+	InstallationMPNS = "mpns"
+)
+
 type (
 	// Installation represents a device installation for Azure Notification Hubs.
 	Installation struct {
@@ -76,18 +94,13 @@ type (
 		InstallationID string `json:"installationId"`
 
 		// Platform is the platform type for the device.
-		// Valid values: "apns" for iOS, "gcm" for Android.
+		// Valid values: "apns" for iOS and "gcm", "FCMV1" for Android.
 		// Platform	| Value
 		// Apple	| "apns"
-		// FCM		| "gcm"
+		// FCM		| "gcm" or "fcm" and "FCMV1" (see https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest)
 		// Baidu	| "baidu"
 		// WNS		| "wns"
 		// MPNS		| "mpns"
-		//
-		// Why GCM instead of FCM?
-		// Firebase Cloud Messaging (FCM) has replaced Google Cloud Messaging (GCM) as Google's primary push notification service.
-		// However, within Azure Notification Hubs, the platform identifier for Android devices remains "gcm". This is because
-		// Azure continues to use "gcm" as the platform designation for compatibility reasons, even though the underlying service is FCM.
 		Platform string `json:"platform"`
 
 		// PushChannel is the device-specific token to receive notifications.
@@ -115,10 +128,10 @@ type (
 // Validate checks if the installation has all required fields set.
 func (i Installation) Validate() error {
 	switch i.Platform {
-	case "apns", "fcm", "gcm":
+	case InstallationApple, InstallationAndroid, InstallationFCM, InstallationFCMV1, InstallationBaidu, InstallationWNS, InstallationMPNS:
 		// OK
 	default:
-		return fmt.Errorf("invalid platform: %q (must be 'apns' or 'fcm' or 'gcm')", i.Platform)
+		return fmt.Errorf("invalid platform: %q (must be 'apns' or 'fcm' or 'FCMV1' or 'gcm')", i.Platform)
 	}
 	if i.InstallationID == "" {
 		return fmt.Errorf("installation ID is required")
@@ -164,8 +177,8 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 		return "", fmt.Errorf("failed to get SAS token: %w", err)
 	}
 
-	if installation.Platform == "fcm" {
-		installation.Platform = "gcm" // Azure uses "gcm" for FCM. See: https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest.
+	if installation.Platform == InstallationFCM {
+		installation.Platform = InstallationAndroid // Azure uses "gcm" for FCM. See: https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest.
 	}
 
 	jsonData, err := json.Marshal(installation)
@@ -252,10 +265,10 @@ type androidNotificationWithData struct {
 const (
 	applePlatform = "apple"
 	gcmPlatform   = "gcm"
-	fcmPlatform   = "fcm"
+	fcmV1Platform = "fcmV1"
 )
 
-var availablePlatforms = []string{applePlatform, gcmPlatform}
+var availablePlatforms = []string{applePlatform, gcmPlatform, fcmV1Platform}
 
 var errDeviceNotFound = fmt.Errorf("no device found")
 
@@ -290,9 +303,8 @@ func sendPlatformNotification(
 		maps.Copy(apnsPayload, data)
 
 		payload, err = json.Marshal(apnsPayload)
-	case gcmPlatform, fcmPlatform:
+	case gcmPlatform, fcmV1Platform:
 		// FCM/GCM supports custom data under "data"
-		platform = gcmPlatform
 		fcmPayload := androidNotificationWithData{
 			Notification: msg,
 			Data:         data,

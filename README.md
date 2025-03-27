@@ -91,7 +91,7 @@ The library will auto-extract `Namespace`, `KeyName`, and `KeyValue` from the co
 In your mobile apps:
 
 - For **iOS** (APNs), get the APNs device token
-- For **Android** (FCM, GCM), get the FCM registration token
+- For **Android** (GCM, FCM, FCMV1), get the FCM registration token
 
 Then send it to your backend for registration using this package.
 
