@@ -252,6 +252,7 @@ type androidNotificationWithData struct {
 const (
 	applePlatform = "apple"
 	gcmPlatform   = "gcm"
+	fcmPlatform   = "fcm"
 )
 
 var availablePlatforms = []string{applePlatform, gcmPlatform}
@@ -289,8 +290,9 @@ func sendPlatformNotification(
 		maps.Copy(apnsPayload, data)
 
 		payload, err = json.Marshal(apnsPayload)
-	case gcmPlatform:
-		// FCM supports custom data under "data"
+	case gcmPlatform, fcmPlatform:
+		// FCM/GCM supports custom data under "data"
+		platform = gcmPlatform
 		fcmPayload := androidNotificationWithData{
 			Notification: msg,
 			Data:         data,
@@ -321,11 +323,14 @@ func sendPlatformNotification(
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusBadRequest /* bad request: gcm notification failed with status 400*/ {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		return fmt.Errorf("%w: %s notification skipped", errDeviceNotFound, platform)
 	}
+
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("%s notification failed with status %d", platform, resp.StatusCode)
+		// Bad request? invalid payload or missing required fields.
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to send %s notification with status: %d and body: %s", platform, resp.StatusCode, string(b))
 	}
 	return nil
 }
