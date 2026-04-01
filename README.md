@@ -2,7 +2,7 @@
 
 [![build status](https://img.shields.io/github/actions/workflow/status/kataras/azurepush/ci.yml?branch=main&style=for-the-badge)](https://github.com/kataras/azurepush/actions/workflows/ci.yml)
 
-Go client for Azure Notification Hubs (iOS + Android) with dynamic SAS authentication.
+Go client for Azure Notification Hubs (APNs + FCMv1) with dynamic SAS authentication.
 
 ## ✨ Features
 
@@ -90,8 +90,8 @@ The library will auto-extract `Namespace`, `KeyName`, and `KeyValue` from the co
 
 In your mobile apps:
 
-- For **iOS** (APNs), get the APNs device token
-- For **Android** (GCM, FCM, FCMV1), get the FCM registration token
+- For **iOS**, get the APNs device token
+- For **Android**, get the FCM registration token
 
 Then send it to your backend for registration using this package.
 
@@ -109,8 +109,8 @@ func main() {
 	client := azurepush.NewClient(*cfg)
 
 	id, err := client.RegisterDevice(context.Background(), azurepush.Installation{
-		Platform:    "gcm", // or "apns"
-		PushChannel: "gcm-or-apns-token",
+		Platform:    azurepush.InstallationFCMV1, // or azurepush.InstallationApple
+		PushChannel: "fcm-or-apns-device-token",
 		Tags:        []string{"user:42"},
 	})
 	if err != nil {

@@ -68,15 +68,11 @@ func NewClient(cfg Configuration) *Client {
 	return client
 }
 
-// Installation types for Azure Notification Hubs.
+// Installation platform types for Azure Notification Hubs.
 const (
-	// InstallationApple is the platform type for Apple devices (iOS).
+	// InstallationApple is the platform type for Apple devices (iOS/APNs).
 	InstallationApple = "apns"
-	// InstallationGCM is the platform type for Google Cloud Messaging (deprecated).
-	InstallationAndroid = "gcm"
-	// InstallationGCM is the platform type for Google Cloud Messaging (deprecated).
-	InstallationFCM = "fcm"
-	// InstallationFCMV1 is the platform type for Firebase Cloud Messaging (V1).
+	// InstallationFCMV1 is the platform type for Android devices (Firebase Cloud Messaging v1).
 	InstallationFCMV1 = "FCMV1"
 	// InstallationBaidu is the platform type for Baidu Push.
 	InstallationBaidu = "baidu"
@@ -94,10 +90,9 @@ type (
 		InstallationID string `json:"installationId"`
 
 		// Platform is the platform type for the device.
-		// Valid values: "apns" for iOS and "gcm", "FCMV1" for Android.
 		// Platform	| Value
 		// Apple	| "apns"
-		// FCM		| "gcm" or "fcm" and "FCMV1" (see https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest)
+		// Android	| "FCMV1" (Firebase Cloud Messaging v1, see https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest)
 		// Baidu	| "baidu"
 		// WNS		| "wns"
 		// MPNS		| "mpns"
@@ -128,10 +123,10 @@ type (
 // Validate checks if the installation has all required fields set.
 func (i Installation) Validate() error {
 	switch i.Platform {
-	case InstallationApple, InstallationAndroid, InstallationFCM, InstallationFCMV1, InstallationBaidu, InstallationWNS, InstallationMPNS:
+	case InstallationApple, InstallationFCMV1, InstallationBaidu, InstallationWNS, InstallationMPNS:
 		// OK
 	default:
-		return fmt.Errorf("invalid platform: %q (must be 'apns' or 'fcm' or 'FCMV1' or 'gcm')", i.Platform)
+		return fmt.Errorf("invalid platform: %q (must be 'apns', 'FCMV1', 'baidu', 'wns' or 'mpns')", i.Platform)
 	}
 	if i.InstallationID == "" {
 		return fmt.Errorf("installation ID is required")
@@ -175,10 +170,6 @@ func (c *Client) RegisterDevice(ctx context.Context, installation Installation) 
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return "", fmt.Errorf("failed to get SAS token: %w", err)
-	}
-
-	if installation.Platform == InstallationFCM {
-		installation.Platform = InstallationAndroid // Azure uses "gcm" for FCM. See: https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest.
 	}
 
 	jsonData, err := json.Marshal(installation)
@@ -256,12 +247,6 @@ type notificationMessage struct {
 // appleNotificationWithData allows embedding custom data alongside the APS payload.
 type appleNotificationWithData map[string]interface{}
 
-// androidNotification is the legacy GCM/FCM payload.
-type androidNotificationWithData struct {
-	Notification notificationMessage    `json:"notification"`
-	Data         map[string]interface{} `json:"data,omitempty"`
-}
-
 // fcmV1NotificationPayload is the Azure NH wrapper for FCMv1.
 // FCMv1 requires the payload under a "message" object with string-only data values.
 // See: https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest
@@ -292,18 +277,17 @@ func toStringMap(m map[string]any) map[string]string {
 
 const (
 	applePlatform = "apple"
-	gcmPlatform   = "gcm"
 	fcmV1Platform = "fcmV1"
 )
 
-var availablePlatforms = []string{applePlatform, gcmPlatform, fcmV1Platform}
+var availablePlatforms = []string{applePlatform, fcmV1Platform}
 
 var errDeviceNotFound = fmt.Errorf("no device found")
 
 // sendPlatformNotification sends a platform-specific push notification.
 // Usage:
 //
-//	_ = sendPlatformNotification(ctx, client, hubName, namespace, token, "fcm", msg, map[string]any{
+//	_ = sendPlatformNotification(ctx, client, hubName, namespace, token, "fcmV1", msg, map[string]any{
 //		"type":     "chat_message",
 //		"threadId": "abc123",
 //	}, "user:42")
@@ -332,13 +316,6 @@ func sendPlatformNotification(
 		maps.Copy(apnsPayload, data)
 
 		payload, err = json.Marshal(apnsPayload)
-	case gcmPlatform:
-		// Legacy GCM format.
-		fcmPayload := androidNotificationWithData{
-			Notification: msg,
-			Data:         data,
-		}
-		payload, err = json.Marshal(fcmPayload)
 	case fcmV1Platform:
 		// FCMv1 requires message wrapper and string-only data values.
 		fcmV1Payload := fcmV1NotificationPayload{

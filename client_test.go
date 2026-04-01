@@ -49,7 +49,7 @@ func TestClient_RegisterDevice_Mocked(t *testing.T) {
 
 	installation := azurepush.Installation{
 		InstallationID: "test-device",
-		Platform:       "gcm",
+		Platform:       azurepush.InstallationFCMV1,
 		PushChannel:    "mock-token",
 		Tags:           []string{"user:42"},
 	}
@@ -67,7 +67,7 @@ func TestClient_RegisterDevice_Mocked(t *testing.T) {
 func TestClient_DeviceDeviceExists_Mocked(t *testing.T) {
 	installation := azurepush.Installation{
 		InstallationID: "test-device",
-		Platform:       "gcm",
+		Platform:       azurepush.InstallationFCMV1,
 		PushChannel:    "mock-token",
 		Tags:           []string{"user:42"},
 	}
@@ -124,7 +124,7 @@ func TestClient_SendNotification_Mocked(t *testing.T) {
 		t.Fatalf("expected no error from SendNotification, got: %v", err)
 	}
 
-	if calls != 3 {
-		t.Errorf("expected 3 calls (one per platform), got: %d", calls)
+	if calls != 2 {
+		t.Errorf("expected 2 calls (one per platform), got: %d", calls)
 	}
 }
