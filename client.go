@@ -256,10 +256,38 @@ type notificationMessage struct {
 // appleNotificationWithData allows embedding custom data alongside the APS payload.
 type appleNotificationWithData map[string]interface{}
 
-// androidNotification is the FCM payload.
+// androidNotification is the legacy GCM/FCM payload.
 type androidNotificationWithData struct {
 	Notification notificationMessage    `json:"notification"`
 	Data         map[string]interface{} `json:"data,omitempty"`
+}
+
+// fcmV1NotificationPayload is the Azure NH wrapper for FCMv1.
+// FCMv1 requires the payload under a "message" object with string-only data values.
+// See: https://learn.microsoft.com/en-us/azure/notification-hubs/firebase-migration-rest
+type fcmV1NotificationPayload struct {
+	Message fcmV1Message `json:"message"`
+}
+
+type fcmV1Message struct {
+	Notification notificationMessage `json:"notification"`
+	Android      *fcmV1Android       `json:"android,omitempty"`
+}
+
+type fcmV1Android struct {
+	Data map[string]string `json:"data,omitempty"`
+}
+
+// toStringMap converts map[string]any to map[string]string for FCMv1 compatibility.
+func toStringMap(m map[string]any) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		result[k] = fmt.Sprintf("%v", v)
+	}
+	return result
 }
 
 const (
@@ -298,18 +326,32 @@ func sendPlatformNotification(
 		apnsPayload := appleNotificationWithData{
 			"aps": map[string]any{
 				"alert": msg,
+				"sound": "default",
 			},
 		}
 		maps.Copy(apnsPayload, data)
 
 		payload, err = json.Marshal(apnsPayload)
-	case gcmPlatform, fcmV1Platform:
-		// FCM/GCM supports custom data under "data"
+	case gcmPlatform:
+		// Legacy GCM format.
 		fcmPayload := androidNotificationWithData{
 			Notification: msg,
 			Data:         data,
 		}
 		payload, err = json.Marshal(fcmPayload)
+	case fcmV1Platform:
+		// FCMv1 requires message wrapper and string-only data values.
+		fcmV1Payload := fcmV1NotificationPayload{
+			Message: fcmV1Message{
+				Notification: msg,
+			},
+		}
+		if len(data) > 0 {
+			fcmV1Payload.Message.Android = &fcmV1Android{
+				Data: toStringMap(data),
+			}
+		}
+		payload, err = json.Marshal(fcmV1Payload)
 	default:
 		return fmt.Errorf("unsupported platform: %s", platform)
 	}

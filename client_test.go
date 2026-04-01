@@ -124,7 +124,7 @@ func TestClient_SendNotification_Mocked(t *testing.T) {
 		t.Fatalf("expected no error from SendNotification, got: %v", err)
 	}
 
-	if calls != 2 {
-		t.Errorf("expected 2 calls (one per platform), got: %d", calls)
+	if calls != 3 {
+		t.Errorf("expected 3 calls (one per platform), got: %d", calls)
 	}
 }
